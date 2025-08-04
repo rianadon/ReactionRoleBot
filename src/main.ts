@@ -7,7 +7,7 @@
  * for more information.
  ******************************************************************************/
 import * as Discord from 'discord.js';
-import { createLogger, GlobalLogger, startupMsg, unindent } from '@mimickal/discord-logging';
+import { createLogger, GlobalLogger, startupMsg, unindent } from '../node_modules/@mimickal/discord-logging/src/index.ts';
 import { existsSync } from 'fs';
 
 import { Config, Package } from './config';
@@ -40,6 +40,7 @@ const client = new Discord.Client({
 		Discord.GatewayIntentBits.GuildMembers,
 		Discord.GatewayIntentBits.GuildMessages,
 		Discord.GatewayIntentBits.GuildMessageReactions,
+    Discord.GatewayIntentBits.MessageContent,
 	],
 	partials: [
 		// https://discordjs.guide/popular-topics/reactions.html#listening-for-reactions-on-old-messages
@@ -50,10 +51,10 @@ const client = new Discord.Client({
 		Discord.Partials.User,
 	],
 	presence: {
-		activities: [{
-			name: `Version ${Package.version}`,
-			type: Discord.ActivityType.Playing,
-		}],
+		  activities: [{
+			    name: `the Cosmos`,
+			    type: Discord.ActivityType.Watching,
+		  }],
 	},
 });
 
@@ -66,6 +67,7 @@ client.on(Discord.Events.MessageBulkDelete, events.onMessageBulkDelete);
 client.on(Discord.Events.MessageDelete, events.onMessageDelete);
 client.on(Discord.Events.MessageReactionAdd, events.onReactionAdd);
 client.on(Discord.Events.MessageReactionRemove, events.onReactionRemove);
+client.on(Discord.Events.MessageCreate, events.onMessage);
 
 
 logger.info(startupMsg(Package.version, Config));

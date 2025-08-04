@@ -50,6 +50,8 @@ import {
 	stringify,
 	unindent,
 } from '@mimickal/discord-logging';
+import { GlobalLogger, asLines, detail, stringify, unindent } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+
 import Multimap from 'multimap';
 import NodeCache from 'node-cache';
 
@@ -69,23 +71,23 @@ const SELECTED_MESSAGE_CACHE = new NodeCache(CACHE_SETTINGS);
 const CLONE_MESSAGE_CACHE = new NodeCache(CACHE_SETTINGS);
 
 const REGISTRY = new SlashCommandRegistry()
-	.addCommand(command => command
-		.setName('info')
-		.setDescription(
-			'Prints description, version, and link to source code for the bot'
-		)
-		.setHandler(cmdInfo)
-	)
-	.addContextMenuCommand(command => command
-		.setName('select-message')
-		.setType(ApplicationCommandType.Message)
-		.setHandler(requireAuth(cmdSelect))
-	)
-	.addContextMenuCommand(command => command
-		.setName('select-copy-target')
-		.setType(ApplicationCommandType.Message)
-		.setHandler(requireAuth(cmdSelectCopy))
-	)
+	// .addCommand(command => command
+	// 	.setName('info')
+	// 	.setDescription(
+	// 		'Prints description, version, and link to source code for the bot'
+	// 	)
+	// 	.setHandler(cmdInfo)
+	// )
+	// .addContextMenuCommand(command => command
+	// 	.setName('select-message')
+	// 	.setType(ApplicationCommandType.Message)
+	// 	.setHandler(requireAuth(cmdSelect))
+	// )
+	// .addContextMenuCommand(command => command
+	// 	.setName('select-copy-target')
+	// 	.setType(ApplicationCommandType.Message)
+	// 	.setHandler(requireAuth(cmdSelectCopy))
+	// )
 	.addCommand(command => command
 		.setName('select-message-mobile')
 		.setDescription('Workaround for selecting messages on mobile')
@@ -243,11 +245,12 @@ const REGISTRY = new SlashCommandRegistry()
 function requireAuth<T extends CommandInteraction>(
 	handler: Handler<WithGuild<T>>
 ): Handler<T> {
-	return async function(interaction: T): Promise<unknown> {
+	  return async function(interaction: T): Promise<unknown> {
 		if (!interaction.inCachedGuild()) {
 			return ephemReply(interaction, 'This command only works in a guild!');
 		}
 
+    const interactionUser = await interaction.guild.members.fetch(interaction.user.id)
 		const member = await interaction.member.fetch(); // Ensures cache
 
 		if (member.permissions.has(PermissionFlagsBits.Administrator)) {

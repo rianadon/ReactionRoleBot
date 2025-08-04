@@ -20,9 +20,10 @@ import {
 	PartialMessageReaction,
 	PartialUser,
 	PermissionFlagsBits,
+	TextChannel,
 	User,
 } from 'discord.js';
-import { GlobalLogger, detail, stringify, unindent } from '@mimickal/discord-logging';
+import { createLogger, GlobalLogger, startupMsg, unindent, detail, stringify } from '../node_modules/@mimickal/discord-logging/src/index.ts';
 import lodash from 'lodash';
 
 import commands from './commands';
@@ -30,8 +31,12 @@ import { Config } from './config';
 import * as database from './database';
 import UserMutex from './mutex';
 import { emojiToKey, errToStr } from './util';
+import TimedMessageCache from './messageCache';
 
 const logger = GlobalLogger.logger;
+
+const messageCache = new TimedMessageCache<string, Message|PartialMessage>();
+const MOD_CHANNEL_ID = '1024459702991589438'; // replace this
 
 /**
  * Allows us to "lock" a user to prevent multiple events from trying to update
@@ -171,6 +176,11 @@ export async function onMessageDelete(
 	} catch (err) {
 		logger.error(`Deleted ${stringify(message)} but failed to clear records`, err);
 	}
+
+	if (message.content && message.author) {
+    const key = message.author.id + '\n' + message.content;
+    messageCache.remove(key, message);
+  }
 }
 
 /**
@@ -396,4 +406,64 @@ async function precache(client: Client<true>): Promise<void> {
 	}));
 
 	logger.info(`Finished pre-cache (${numCached} messages)`);
+}
+
+export async function onMessage(
+	message: Message<boolean> | PartialMessage
+): Promise<void> {
+  if (!('name' in message.channel) || !message.member) return
+
+  logger.info(`Granting user keyboard role`);
+  if (message.channel.name == 'showcase' && message.attachments.size > 0) {
+    await message.member.roles.add(['1281742140363243560'], 'Role bot assignment');
+  }
+
+  if (!message.author || !message.content) return
+  const key = message.author.id + '\n' + message.content
+  if (message.content.length > 20 &&
+    !messageCache.get(key).some(c => c.channel.id == message.channel.id)) {
+    if (messageCache.set(key, message) >= 2) {
+      // Delete all messages
+		  for (const msg of messageCache.get(key)) {
+			  try {
+				  await msg.delete();
+			  } catch (err) {
+				  logger.warn(`Failed to delete message: ${err}`);
+			  }
+		  }
+
+		  try {
+			  await message.member.timeout(1 * 60 * 60 * 1000, 'Spamming same message in multiple channels');
+		  } catch (err) {
+			  logger.error(`Failed to timeout user: ${err}`);
+		  }
+
+      try {
+        await message.author.send([
+          'This is Cosmos Bot. To keep my server spam-free, I take aggressive anti-spam maneuvers, including blocking cross-posting (sending the same message to multiple channels).',
+          '',
+          'You\'ve been timed out and your messages removed as humans assess whether your message truly is spam.',
+          'I apologize for the inconvenience. Discord\'s spam detection is pretty weak and spam has gotten very annoying, so this is the best stopgap.',
+          'In the future, please post your message in only one channel. If you realized you posted to the wrong channel, delete the original message first.',
+          'Don\'t worry, the active server members read every message no matter in which channel it\'s posted.'
+        ].join('\n'));
+      } catch (err) {
+        logger.warn(`Could not DM user ${message.author.tag} after timeout: ${err}`);
+      }
+
+      try {
+			  const modChannel = await message.client.channels.fetch(MOD_CHANNEL_ID);
+				await (modChannel as TextChannel).send({
+					embeds: [{
+						title: 'This user has been timed-out for spamming',
+						description: message.content,
+						color: 0xff0000,
+						footer: { text: `User: ${message.author.tag}` },
+					}]
+				});
+		  } catch (err) {
+			  logger.error(`Failed to notify moderators: ${err}`);
+		  }
+    }
+  }
 }

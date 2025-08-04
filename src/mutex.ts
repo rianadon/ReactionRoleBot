@@ -8,7 +8,7 @@
  ******************************************************************************/
 import { Mutex } from 'async-mutex';
 import { GuildMember, PartialUser, Snowflake, User } from 'discord.js';
-import { GlobalLogger, stringify } from '@mimickal/discord-logging';
+import { createLogger, GlobalLogger, stringify } from '../node_modules/@mimickal/discord-logging/src/index.ts';
 
 const logger = GlobalLogger.logger;
 
@@ -111,5 +111,3 @@ function caller(depth: number): string {
 	const match = call_line?.match(/\s*at ([\w.]+)/);
 	return match?.[1] ?? '<Failed to determine caller>';
 }
-
-module.exports = UserMutex;
