@@ -8,7 +8,7 @@
  ******************************************************************************/
 import { Mutex } from 'async-mutex';
 import { GuildMember, PartialUser, Snowflake, User } from 'discord.js';
-import { createLogger, GlobalLogger, stringify } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+import { createLogger, GlobalLogger, stringify } from './discord-logging';
 
 const logger = GlobalLogger.logger;
 

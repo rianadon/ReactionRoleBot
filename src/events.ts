@@ -23,7 +23,7 @@ import {
 	TextChannel,
 	User,
 } from 'discord.js';
-import { createLogger, GlobalLogger, startupMsg, unindent, detail, stringify } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+import { createLogger, GlobalLogger, startupMsg, unindent, detail, stringify } from './discord-logging';
 import lodash from 'lodash';
 
 import commands from './commands';
@@ -32,11 +32,12 @@ import * as database from './database';
 import UserMutex from './mutex';
 import { emojiToKey, errToStr } from './util';
 import TimedMessageCache from './messageCache';
+import imgHash from "imghash";
 
 const logger = GlobalLogger.logger;
 
 const messageCache = new TimedMessageCache<string, Message|PartialMessage>();
-const MOD_CHANNEL_ID = '1024459702991589438'; // replace this
+const MOD_CHANNEL_ID = '1114851864404561981'; // replace this
 
 /**
  * Allows us to "lock" a user to prevent multiple events from trying to update
@@ -161,6 +162,30 @@ export async function onMessageBulkDelete(
 	}
 }
 
+async function messageKey(message: Message<boolean> | PartialMessage): string | null {
+  if (!message.author || (!message.content && !message.attachments.size)) return null
+
+  const imageUrls = [...message.attachments.values()]
+	.filter(a => a.contentType?.startsWith("image/"))
+	.map(a => a.url);
+
+  const imageNames = [...message.attachments.values()]
+	.filter(a => a.contentType?.startsWith("image/"))
+	                     .map(a => a.name);
+
+  const embedUrls = [...message.embeds.map(e => e.url)]
+
+//   const imageHashes = await Promise.all(imageUrls.map((img) => imgHash.hash(img)));
+
+  const content = message.content || ''
+  const key = message.author.id + '\n' + content + '\n' + [...imageNames, ...embedUrls].sort().join('\n')
+  if (imageNames.length) console.log('IMAGE NAME', JSON.stringify(key))
+  if (embedUrls.length) console.log('EMBED NAME', JSON.stringify(key))
+  if (imageNames.length || embedUrls.length || content.length > 20) return key
+
+  return null
+}
+
 /**
  * Event handler for when a message is deleted.
  * Removes any react-roles configured for the deleted message.
@@ -177,10 +202,8 @@ export async function onMessageDelete(
 		logger.error(`Deleted ${stringify(message)} but failed to clear records`, err);
 	}
 
-	if (message.content && message.author) {
-    const key = message.author.id + '\n' + message.content;
-    messageCache.remove(key, message);
-  }
+    const key = await messageKey(message)
+    if (key) messageCache.remove(key, message);
 }
 
 /**
@@ -408,22 +431,65 @@ async function precache(client: Client<true>): Promise<void> {
 	logger.info(`Finished pre-cache (${numCached} messages)`);
 }
 
+export async function onMessageUpdate(
+	message: Message<boolean> | PartialMessage
+): Promise<void> {
+  if (message.partial) await message.fetch();
+
+  const imageUrls = [...message.attachments.values()]
+	.filter(a => a.contentType?.startsWith("image/"))
+	.map(a => a.url);
+  if (message.attachments.size > 0) console.log('Message updated with images', message.author?.tag, imageUrls)
+  if (message.embeds.length > 0 || message.stickers.size > 0) console.log('Updated message with stickers/embeds from', message.author?.tag, message.embeds, message.stickers)
+}
+
 export async function onMessage(
 	message: Message<boolean> | PartialMessage
 ): Promise<void> {
+  if (message.partial) await message.fetch()
+
+  if (message.channel.type === ChannelType.DM) {
+    console.log(
+      `DM from ${message.author?.tag}: ${message.content}`,
+      {
+        attachments: [...message.attachments.values()].map(a => a.url),
+      }
+    );
+      try {
+			  const modChannel = await message.client.channels.fetch(MOD_CHANNEL_ID);
+				await (modChannel as TextChannel).send({
+					embeds: [{
+						title: 'Got a DM from user',
+						description: message.content || '',
+						color: 0x00000ff,
+						footer: { text: `User: ${message.author.tag}` },
+					}]
+				});
+		  } catch (err) {
+			  logger.error(`Failed to notify moderators: ${err}`);
+		  }
+  }
+
+  const imageUrls = [...message.attachments.values()]
+	.filter(a => a.contentType?.startsWith("image/"))
+	.map(a => a.url);
+  if (message.attachments.size > 0) console.log('New message with images from', message.author?.tag, imageUrls)
+  if (message.embeds.length > 0 || message.stickers.size > 0) console.log('New message with stickers/embeds from', message.author?.tag, message.embeds, message.stickers)
+
   if (!('name' in message.channel) || !message.member) return
 
-  logger.info(`Granting user keyboard role`);
-  if (message.channel.name == 'showcase' && message.attachments.size > 0) {
+    logger.info(`Considering user keyboard role for ${message.member}/${message.author?.tag}. Channel ${message.channel.name} and attachments ${message.attachments.size}.`);
+    if (message.channel.name == 'showcase' && message.attachments.size > 0) {
+        logger.info('Granting user keyboard role!')
     await message.member.roles.add(['1281742140363243560'], 'Role bot assignment');
   }
 
-  if (!message.author || !message.content) return
-  const key = message.author.id + '\n' + message.content
-  if (message.content.length > 20 &&
-    !messageCache.get(key).some(c => c.channel.id == message.channel.id)) {
+  const content = message.content || ''
+  const key = await messageKey(message)
+  if (key && !messageCache.get(key).some(c => c.channel.id == message.channel.id)) {
     if (messageCache.set(key, message) >= 2) {
       // Delete all messages
+	  console.log("SPAM!")
 		  for (const msg of messageCache.get(key)) {
 			  try {
 				  await msg.delete();
@@ -433,22 +499,24 @@ export async function onMessage(
 		  }
 
 		  try {
-			  await message.member.timeout(1 * 60 * 60 * 1000, 'Spamming same message in multiple channels');
+			  await message.member.timeout(3 * 60 * 1000, 'Spamming same message in multiple channels');
 		  } catch (err) {
 			  logger.error(`Failed to timeout user: ${err}`);
 		  }
 
       try {
-        await message.author.send([
-          'This is Cosmos Bot. To keep my server spam-free, I take aggressive anti-spam maneuvers, including blocking cross-posting (sending the same message to multiple channels).',
+        await message.author!.send([
+          'This is Cosmos Bot. Spam is a pretty big problem on Discord, so I take aggressive anti-spam maneuvers including blocking cross-posting (sending the same message to multiple channels).',
           '',
-          'You\'ve been timed out and your messages removed as humans assess whether your message truly is spam.',
-          'I apologize for the inconvenience. Discord\'s spam detection is pretty weak and spam has gotten very annoying, so this is the best stopgap.',
+          'You\'ve been timed out for a few minutes. I apologize if you\'re a human. The timeout is to stop spam bots from continuing to spam.',
           'In the future, please post your message in only one channel. If you realized you posted to the wrong channel, delete the original message first.',
-          'Don\'t worry, the active server members read every message no matter in which channel it\'s posted.'
+          'Don\'t worry, the active server members read every message no matter in which channel it\'s posted.',
+          '',
+          'Here is the message you sent, so that you may resend it when the timeout ends:',
         ].join('\n'));
+        await message.author!.send(content);
       } catch (err) {
-        logger.warn(`Could not DM user ${message.author.tag} after timeout: ${err}`);
+        logger.warn(`Could not DM user ${message.author!.tag} after timeout: ${err}`);
       }
 
       try {
@@ -456,7 +524,7 @@ export async function onMessage(
 				await (modChannel as TextChannel).send({
 					embeds: [{
 						title: 'This user has been timed-out for spamming',
-						description: message.content,
+						description: content,
 						color: 0xff0000,
 						footer: { text: `User: ${message.author.tag}` },
 					}]
@@ -464,6 +532,46 @@ export async function onMessage(
 		  } catch (err) {
 			  logger.error(`Failed to notify moderators: ${err}`);
 		  }
+	return
     }
-  }
+}
+  if (message.embeds.find(e => e.url?.includes('//imgur'))) {
+	console.log("BAD EMBED!")
+	try {
+		await message.delete();
+	} catch (err) {
+		logger.warn(`Failed to delete message: ${err}`);
+	}
+
+	try {
+		await message.member.timeout(3 * 60 * 1000, 'Sending suspected spam');
+	} catch (err) {
+		logger.error(`Failed to timeout user: ${err}`);
+	}
+
+	try {
+        await message.author!.send([
+          'This is Cosmos Bot. Spam is a pretty big problem on Discord, so I take aggressive anti-spam maneuvers including blocking suspected spam messages.',
+          '',
+          'You\'ve been timed out for a few minutes. I apologize if you\'re a human. The timeout is to stop spam bots from continuing to spam.',
+          'If your message had images, please send it a different way.',
+        ].join('\n'));
+      } catch (err) {
+        logger.warn(`Could not DM user ${message.author!.tag} after timeout: ${err}`);
+      }
+
+      try {
+			  const modChannel = await message.client.channels.fetch(MOD_CHANNEL_ID);
+				await (modChannel as TextChannel).send({
+					embeds: [{
+						title: 'This user has been timed-out for suspected spam',
+						description: '```\n' + JSON.stringify(message.embeds.map(e => e.toJSON())) + '\n```',
+						color: 0xff0000,
+						footer: { text: `User: ${message.author!.tag}` },
+					}]
+				});
+		  } catch (err) {
+			  logger.error(`Failed to notify moderators: ${err}`);
+		  }
+	}
 }

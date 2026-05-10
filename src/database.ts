@@ -11,7 +11,7 @@ import setupKnex, { Knex } from 'knex';
 const knex = setupKnex(knexfile[process.env.NODE_ENV || 'development']);
 
 import { Snowflake } from 'discord.js';
-import { createLogger, GlobalLogger, stringify } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+import { createLogger, GlobalLogger, stringify } from './discord-logging';
 import lodash from 'lodash';
 import MultiMap from 'multimap';
 

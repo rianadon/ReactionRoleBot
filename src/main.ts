@@ -7,7 +7,7 @@
  * for more information.
  ******************************************************************************/
 import * as Discord from 'discord.js';
-import { createLogger, GlobalLogger, startupMsg, unindent } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+import { createLogger, GlobalLogger, startupMsg, unindent } from './discord-logging';
 import { existsSync } from 'fs';
 
 import { Config, Package } from './config';
@@ -40,6 +40,7 @@ const client = new Discord.Client({
 		Discord.GatewayIntentBits.GuildMembers,
 		Discord.GatewayIntentBits.GuildMessages,
 		Discord.GatewayIntentBits.GuildMessageReactions,
+		Discord.GatewayIntentBits.DirectMessages,
     Discord.GatewayIntentBits.MessageContent,
 	],
 	partials: [
@@ -68,6 +69,7 @@ client.on(Discord.Events.MessageDelete, events.onMessageDelete);
 client.on(Discord.Events.MessageReactionAdd, events.onReactionAdd);
 client.on(Discord.Events.MessageReactionRemove, events.onReactionRemove);
 client.on(Discord.Events.MessageCreate, events.onMessage);
+client.on(Discord.Events.MessageUpdate, events.onMessageUpdate);
 
 
 logger.info(startupMsg(Package.version, Config));

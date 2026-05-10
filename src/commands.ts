@@ -44,13 +44,7 @@ import {
 	roleMention,
 	Snowflake,
 } from 'discord.js';
-import {
-	GlobalLogger,
-	asLines,
-	stringify,
-	unindent,
-} from '@mimickal/discord-logging';
-import { GlobalLogger, asLines, detail, stringify, unindent } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+import { GlobalLogger, asLines, stringify, unindent } from './discord-logging';
 
 import Multimap from 'multimap';
 import NodeCache from 'node-cache';

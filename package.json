@@ -8,20 +8,20 @@
     "node": ">=16.11.0"
   },
   "dependencies": {
-    "@mimickal/discord-logging": "git+https://github.com/Mimickal/discord-logging#v1.4.0",
     "@types/lodash": "^4.17.7",
     "@types/minimist": "^1.2.5",
     "@types/multimap": "^1.1.4",
     "async-mutex": "^0.5.0",
     "discord-command-registry": "^3.1.1",
     "discord.js": "^14.16.1",
+    "imghash": "^1.1.0",
     "knex": "^3.1.0",
     "lodash": "^4.17.21",
     "minimist": "^1.2.8",
     "multimap": "^1.1.0",
     "node-cache": "^5.1.2",
-    "sqlite3": "^5.1.7",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "winston": "^3.17.0"
   },
   "scripts": {
     "start": "NODE_ENV=prod npx ts-node src/main.ts",
@@ -39,5 +39,8 @@
   "bugs": {
     "url": "https://github.com/Mimickal/ReactionRoleBot/issues"
   },
-  "homepage": "https://github.com/Mimickal/ReactionRoleBot"
+  "homepage": "https://github.com/Mimickal/ReactionRoleBot",
+  "devDependencies": {
+    "@types/bun": "^1.2.19"
+  }
 }

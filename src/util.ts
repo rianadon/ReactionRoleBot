@@ -7,7 +7,7 @@
  * for more information.
  ******************************************************************************/
 import { CommandInteraction, Emoji } from 'discord.js';
-import { GlobalLogger, detail } from '../node_modules/@mimickal/discord-logging/src/index.ts';
+import { GlobalLogger, detail } from './discord-logging';
 import Multimap from 'multimap';
 
 const logger = GlobalLogger.logger;
